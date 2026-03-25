@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shannon Master Terminal 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0c0f;--surface:#111417;--card:#161a1f;--border:#1e2530;--accent:#00e5ff;--green:#00ff88;--red:#ff3860;--text:#e0e8f0;--muted:#5a6a7a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;padding:10px;max-width:800px;margin:auto}
+
+/* Üst Panel: Toplam Değer ve Kur */
+.master-header{background:var(--surface);padding:20px;border-radius:15px;border:1px solid var(--accent);margin-bottom:15px;text-align:center;box-shadow:0 0 20px rgba(0,229,255,0.1)}
+.total-usd{font-size:32px;font-family:'Share Tech Mono';color:var(--green);font-weight:700}
+.total-try{font-size:18px;color:var(--muted);margin-top:5px}
+.performance{font-size:16px;margin-top:10px;font-weight:600}
+
+/* Grafik Alanı */
+.chart-container{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:15px;margin-bottom:15px}
+canvas{width:100% !important;height:160px !important}
+
+/* Sekme Yapısı */
+.tabs{display:flex;background:var(--surface);border-radius:10px;margin-bottom:10px;padding:5px;border:1px solid var(--border)}
+.tab{flex:1;padding:12px;text-align:center;cursor:pointer;border-radius:8px;font-weight:700;color:var(--muted);transition:0.3s}
+.tab.active{background:var(--accent);color:black}
+
+.portfolio-section{display:none}
+.portfolio-section.active{display:block}
+
+/* Varlık Kartları */
+.asset-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px}
+.ticker-row{display:flex;justify-content:space-between;font-weight:700;font-size:16px}
+.inp{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Share Tech Mono';font-size:18px;padding:5px;margin:5px 0;text-align:center;outline:none}
+.band-bar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;margin-top:8px}
+.band-fill{height:100%;transition:width 0.6s}
+.signal-box{margin-top:8px;font-weight:700;padding:6px;border-radius:6px;text-align:center;font-size:12px;letter-spacing:0.5px}
+.buy{background:rgba(0,255,136,0.1);color:var(--green);border:1px solid var(--green)}
+.sell{background:rgba(255,56,96,0.1);color:var(--red);border:1px solid var(--red)}
+
+.btn{width:100%;padding:18px;border-radius:12px;border:2px solid var(--accent);background:rgba(0,229,255,0.1);color:var(--accent);font-weight:700;cursor:pointer;margin:15px 0;font-size:16px}
+@media(max-width:480px){ .asset-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<div class="master-header">
+    <div style="font-size:12px;color:var(--accent);letter-spacing:3px;margin-bottom:5px">TOPLAM PORTFÖY DEĞERİ</div>
+    <div class="total-usd" id="master-usd">$0</div>
+    <div class="total-try" id="master-try">0.00 TL</div>
+    <div class="performance" id="master-perf">--</div>
+</div>
+
+<div class="chart-container">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;text-transform:uppercase">Toplam Portföy Artış/Azalış (USD)</div>
+    <canvas id="growth-chart"></canvas>
+</div>
+
+<div class="tabs">
+    <div class="tab active" onclick="switchTab('p1')">PORTFÖY 1</div>
+    <div class="tab" onclick="switchTab('p2')">PORTFÖY 2</div>
+</div>
+
+<div id="p1" class="portfolio-section active">
+    <div class="asset-grid" id="container-p1"></div>
+    <div class="card">
+        <div style="font-size:11px;color:var(--muted)">LOT GELİŞİMİ (Snowball P1)</div>
+        <canvas id="snow-p1"></canvas>
+    </div>
+</div>
+
+<div id="p2" class="portfolio-section">
+    <div class="asset-grid" id="container-p2"></div>
+    <div class="card">
+        <div style="font-size:11px;color:var(--muted)">LOT GELİŞİMİ (Snowball P2)</div>
+        <canvas id="snow-p2"></canvas>
+    </div>
+</div>
+
+<button class="btn" onclick="fetchAllPrices()">PİYASAYI GÜNCELLE VE ANALİZ ET</button>
+
+<script>
+// VERİ SETİ (Lotlar ve Maliyetler)
+const P1_DATA = [
+    {ticker:'AMDG', target:20, sapma:2, lot:758, cost:25.98, color:'#00e5ff'},
+    {ticker:'SPXL', target:20, sapma:2, lot:85, cost:164.67, color:'#ff6d00'},
+    {ticker:'NVDU', target:20, sapma:2, lot:161, cost:103.82, color:'#00ff88'},
+    {ticker:'TSLL', target:20, sapma:2, lot:1288, cost:15.95, color:'#ffd700'},
+    {ticker:'TMF',  target:20, sapma:2, lot:440, cost:40.63, color:'#a78bfa'}
+];
+
+const P2_DATA = [
+    {ticker:'TEXU', target:20, sapma:3, lot:109, cost:24.81, color:'#00e5ff'},
+    {ticker:'TTXU', target:20, sapma:3, lot:278, cost:21.39, color:'#ff6d00'},
+    {ticker:'TSXU', target:20, sapma:3, lot:147, cost:31.75, color:'#00ff88'},
+    {ticker:'TBXU', target:20, sapma:3, lot:142, cost:30.41, color:'#ffd700'},
+    {ticker:'UGL',  target:10, sapma:2, lot:40, cost:57.92, color:'#ffffff'},
+    {ticker:'TYD',  target:10, sapma:2, lot:92, cost:25.55, color:'#a78bfa'}
+];
+
+// Toplam Maliyet Hesabı
+const TOTAL_BASE_COST = [...P1_DATA, ...P2_DATA].reduce((sum, item) => sum + (item.lot * item.cost), 0);
+
+let growthHistory = [], snowP1 = [], snowP2 = [];
+let usdTry = 32.50; // Başlangıç kuru
+
+function switchTab(id) {
+    document.querySelectorAll('.portfolio-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.currentTarget.classList.add('active');
+}
+
+function init() {
+    buildUI('container-p1', P1_DATA);
+    buildUI('container-p2', P2_DATA);
+    fetchAllPrices();
+}
+
+function buildUI(id, data) {
+    const cont = document.getElementById(id);
+    data.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `
+            <div class="ticker-row"><span style="color:${p.color}">${p.ticker}</span><span id="w-${p.ticker}">%0</span></div>
+            <input type="number" class="inp" id="pr-${p.ticker}" value="0" step="0.01" onchange="calculateAll()">
+            <div class="band-bar"><div class="band-fill" id="f-${p.ticker}" style="background:${p.color}"></div></div>
+            <div id="s-${p.ticker}"></div>
+        `;
+        cont.appendChild(div);
+    });
+}
+
+async function fetchAllPrices() {
+    const tickers = [...P1_DATA, ...P2_DATA].map(d => d.ticker);
+    try {
+        // Döviz kurunu çek (USDTRY)
+        const curRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/USDTRY=X')}`);
+        const curData = await curRes.json();
+        usdTry = curData.chart.result[0].meta.regularMarketPrice;
+
+        for(const t of tickers) {
+            const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+t)}`);
+            const d = await res.json();
+            const p = d.chart.result[0].meta.regularMarketPrice;
+            if(p) document.getElementById(`pr-${t}`).value = p.toFixed(2);
+        }
+    } catch(e) { console.log("Hata:", e); }
+    calculateAll();
+}
+
+function calculateAll() {
+    let sumP1 = calcPort('p1', P1_DATA, snowP1);
+    let sumP2 = calcPort('p2', P2_DATA, snowP2);
+    let totalUSD = sumP1 + sumP2;
+
+    document.getElementById('master-usd').textContent = '$' + totalUSD.toLocaleString(undefined, {maximumFractionDigits:0});
+    document.getElementById('master-try').textContent = (totalUSD * usdTry).toLocaleString('tr-TR', {maximumFractionDigits:0}) + ' TL';
+
+    // Performans (Kâr/Zarar)
+    let diff = totalUSD - TOTAL_BASE_COST;
+    let perc = (diff / TOTAL_BASE_COST) * 100;
+    const perfEl = document.getElementById('master-perf');
+    perfEl.style.color = diff >= 0 ? 'var(--green)' : 'var(--red)';
+    perfEl.textContent = `${diff >= 0 ? '▲' : '▼'} $${Math.abs(diff).toLocaleString(undefined, {maximumFractionDigits:0})} (${perc.toFixed(2)}%)`;
+
+    growthHistory.push(totalUSD);
+    if(growthHistory.length > 30) growthHistory.shift();
+    
+    drawChart('growth-chart', growthHistory, 'var(--accent)');
+    drawChart('snow-p1', snowP1, 'white');
+    drawChart('snow-p2', snowP2, 'white');
+}
+
+function calcPort(id, data, snowHist) {
+    let portTotal = 0, totalLots = 0;
+    data.forEach(p => {
+        let price = parseFloat(document.getElementById(`pr-${p.ticker}`).value) || 0;
+        portTotal += price * p.lot;
+        totalLots += p.lot;
+    });
+
+    data.forEach(p => {
+        let price = parseFloat(document.getElementById(`pr-${p.ticker}`).value) || 0;
+        let weight = portTotal > 0 ? ((price * p.lot) / portTotal) * 100 : 0;
+        
+        // Sinyal Hesabı: Kaç lot lazım?
+        let targetVal = portTotal * (p.target / 100);
+        let currentVal = price * p.lot;
+        let lotDiff = price > 0 ? Math.round((targetVal - currentVal) / price) : 0;
+
+        document.getElementById(`w-${p.ticker}`).textContent = '%' + weight.toFixed(1);
+        document.getElementById(`f-${p.ticker}`).style.width = weight + '%';
+
+        const sBox = document.getElementById(`s-${p.ticker}`);
+        if(weight >= (p.target + p.sapma)) {
+            sBox.innerHTML = `<div class="signal-box sell">🚨 SATIŞ: ${Math.abs(lotDiff)} ADET</div>`;
+        } else if(weight <= (p.target - p.sapma)) {
+            sBox.innerHTML = `<div class="signal-box buy">✅ ALIM: ${Math.abs(lotDiff)} ADET</div>`;
+        } else { sBox.innerHTML = ''; }
+    });
+
+    snowHist.push(totalLots);
+    if(snowHist.length > 30) snowHist.shift();
+    return portTotal;
+}
+
+function drawChart(canvasId, data, color) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width = canvas.offsetWidth;
+    const H = canvas.height = 160;
+    if(data.length < 2) return;
+    const min = Math.min(...data) * 0.99, max = Math.max(...data) * 1.01;
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.beginPath();
+    data.forEach((v, i) => {
+        const x = (i / (data.length - 1)) * W;
+        const y = H - ((v - min) / (max - min)) * H;
+        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
