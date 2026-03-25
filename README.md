@@ -1,1 +1,1 @@
-# Yabanc--Portfoy-Takip
+# Yabancı-Portfoy-Takip
