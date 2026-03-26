@@ -19,38 +19,38 @@
         .total-usd { font-size: 34px; font-family: 'Share Tech Mono'; color: var(--green); }
         .sub-stats { display: flex; justify-content: space-around; margin-top: 10px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 10px; }
 
-        /* Grid & Tabs */
+        /* Tabs */
         .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
         .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); font-weight: 700; color: var(--muted); }
         .tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
         .asset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 
-        /* Snowball Card */
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 15px; position: relative; }
+        /* Card */
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 15px; position: relative; transition: 0.3s; }
         .card.alert-buy { border: 2px solid var(--green); box-shadow: 0 0 15px rgba(0,255,136,0.1); }
         .card.alert-sell { border: 2px solid var(--red); box-shadow: 0 0 15px rgba(255,56,96,0.1); }
         
         .ticker-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .ticker-name { font-size: 20px; font-weight: 700; color: var(--accent); }
         
-        /* Input Fields */
+        /* Inputs */
         .input-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
         .field { background: #000; border: 1px solid var(--border); border-radius: 4px; padding: 5px; color: var(--text); width: 100%; font-family: 'Share Tech Mono'; font-size: 13px; }
         .label { font-size: 9px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; display: block; }
 
-        /* Progress & Snowball Visual */
+        /* Visuals */
         .snow-track { height: 8px; background: #000; border-radius: 4px; margin: 15px 0 5px 0; overflow: hidden; position: relative; }
-        .snow-bar { height: 100%; transition: width 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .target-line { position: absolute; top:0; height:100%; width:2px; background:#fff; z-index:5; }
+        .snow-bar { height: 100%; transition: width 0.6s; }
+        .target-line { position: absolute; top:0; height:100%; width:2px; background:#fff; z-index:5; opacity: 0.5; }
 
         /* Signal Box */
-        .signal { margin-top: 12px; padding: 10px; border-radius: 6px; text-align: center; font-weight: 700; font-size: 13px; letter-spacing: 1px; }
+        .signal { margin-top: 12px; padding: 10px; border-radius: 6px; text-align: center; font-weight: 700; font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
         .sig-buy { background: rgba(0,255,136,0.15); color: var(--green); border: 1px solid var(--green); }
         .sig-sell { background: rgba(255,56,96,0.15); color: var(--red); border: 1px solid var(--red); }
         .sig-ok { background: rgba(90,106,122,0.1); color: var(--muted); border: 1px solid var(--border); }
+        .cash-needed { font-size: 10px; opacity: 0.8; font-family: 'Share Tech Mono'; }
 
         .btn-main { width: 100%; padding: 15px; border-radius: 8px; border: none; background: var(--accent); color: #000; font-weight: 700; cursor: pointer; margin-bottom: 15px; font-family: 'Rajdhani'; font-size: 16px; }
-        
         .up { color: var(--green); } .down { color: var(--red); }
         .hidden { display: none; }
     </style>
@@ -66,7 +66,7 @@
         </div>
     </div>
 
-    <button class="btn-main" onclick="updateAll()">🔄 PİYASA VERİLERİNİ ÇEK & HESAPLA</button>
+    <button class="btn-main" onclick="updateAll()">🔄 PİYASA VERİLERİNİ ÇEK & HESAPLA (Sync Market)</button>
 
     <div class="tabs">
         <div class="tab active" onclick="switchTab('p1', event)">PORTFÖY 1</div>
@@ -77,7 +77,6 @@
     <div id="p2" class="portfolio-section asset-grid hidden"></div>
 
     <script>
-        // --- DATA SETUP ---
         const CONFIG = {
             p1: [
                 {t:'AMDG', target:20, sapma:2, lot:758, cost:25.98, color:'#00e5ff'},
@@ -99,24 +98,19 @@
         const FINNHUB_KEY = 'd722oopr01qjeeefm31gd722oopr01qjeeefm320';
         let livePrices = {};
         let usdTry = 32.50;
-
-        // Yerel verileri yükle (Input değişikliklerini korur)
         let userStats = JSON.parse(localStorage.getItem('shn_user_stats')) || {};
 
         async function updateAll() {
             try {
-                // Kur güncelle
                 const ex = await fetch('https://open.er-api.com/v6/latest/USD').then(r => r.json());
                 usdTry = ex.rates.TRY;
                 document.getElementById('usd-rate').textContent = `USD/TRY: ${usdTry.toFixed(2)}`;
 
-                // Fiyatları çek
                 const tickers = [...CONFIG.p1, ...CONFIG.p2].map(a => a.t);
                 const results = await Promise.all(tickers.map(t => 
                     fetch(`https://finnhub.io/api/v1/quote?symbol=${t}&token=${FINNHUB_KEY}`).then(r => r.json())
                 ));
                 results.forEach((res, i) => { if(res.c) livePrices[tickers[i]] = res.c; });
-
                 render();
             } catch (e) { console.error(e); }
         }
@@ -131,7 +125,6 @@
             const container = document.getElementById(id);
             container.innerHTML = '';
             
-            // Toplam Portföy Değeri Hesapla
             const totalVal = data.reduce((sum, a) => {
                 const lot = userStats[`lot-${a.t}`] || a.lot;
                 return sum + (lot * (livePrices[a.t] || a.cost));
@@ -144,17 +137,25 @@
                 const value = currentLot * price;
                 const weight = (value / totalVal) * 100;
                 
-                // Rebalancing Mantığı
+                // --- HESAPLAMA MANTIĞI ---
                 const diff = weight - a.target;
                 const targetValue = totalVal * (a.target / 100);
                 const tradeLots = Math.round((targetValue - value) / price);
+                const tradeCash = tradeLots * price; // Alım veya Satım için gereken dolar tutarı
                 
-                let sigClass = 'sig-ok', sigText = 'DENGEDE', alertClass = '';
+                let sigClass = 'sig-ok', sigText = 'DENGEDE', alertClass = '', cashInfo = '';
+                
                 if (Math.abs(diff) > a.sapma) {
                     if (tradeLots > 0) { 
-                        sigClass = 'sig-buy'; sigText = `AL: +${tradeLots} LOT`; alertClass = 'alert-buy';
-                    } else { 
-                        sigClass = 'sig-sell'; sigText = `SAT: ${Math.abs(tradeLots)} LOT`; alertClass = 'alert-sell';
+                        sigClass = 'sig-buy'; 
+                        sigText = `ALIM: +${tradeLots} LOT`;
+                        cashInfo = `Maliyet: $${Math.abs(tradeCash).toFixed(0)}`; 
+                        alertClass = 'alert-buy';
+                    } else if (tradeLots < 0) { 
+                        sigClass = 'sig-sell'; 
+                        sigText = `SATIŞ: ${Math.abs(tradeLots)} LOT`;
+                        cashInfo = `Gelir: $${Math.abs(tradeCash).toFixed(0)}`; 
+                        alertClass = 'alert-sell';
                     }
                 }
 
@@ -167,7 +168,7 @@
                         
                         <div class="input-group">
                             <div>
-                                <label class="label">Lot Miktarı</label>
+                                <label class="label">Mevcut Lot</label>
                                 <input type="number" class="field" value="${currentLot}" onchange="save('${a.t}', 'lot', this.value)">
                             </div>
                             <div>
@@ -176,7 +177,7 @@
                             </div>
                         </div>
 
-                        <div class="weight-info" style="display:flex; justify-content:space-between; font-size:11px;">
+                        <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;">
                             <span>Ağırlık: %${weight.toFixed(1)}</span>
                             <span>Hedef: %${a.target}</span>
                         </div>
@@ -186,7 +187,10 @@
                             <div class="target-line" style="left:50%"></div>
                         </div>
 
-                        <div class="signal ${sigClass}">${sigText}</div>
+                        <div class="signal ${sigClass}">
+                            <span>${sigText}</span>
+                            ${cashInfo ? `<span class="cash-needed">${cashInfo}</span>` : ''}
+                        </div>
                     </div>
                 `;
             });
@@ -195,7 +199,7 @@
         function save(ticker, field, val) {
             userStats[`${field}-${ticker}`] = parseFloat(val);
             localStorage.setItem('shn_user_stats', JSON.stringify(userStats));
-            render(); // Anında yeniden hesapla
+            render();
         }
 
         function updateGlobalStats() {
@@ -206,10 +210,9 @@
                 total += (lot * (livePrices[a.t] || cost));
                 costTotal += (lot * cost);
             });
-            
             document.getElementById('total-usd').textContent = `$${total.toLocaleString('en-US', {minimumFractionDigits:2})}`;
             const pl = total - costTotal;
-            const plPerc = (pl / costTotal) * 100;
+            const plPerc = costTotal > 0 ? (pl / costTotal) * 100 : 0;
             document.getElementById('total-pl').innerHTML = `P/L: <span class="${pl>=0?'up':'down'}">${pl>=0?'+':''}$${pl.toFixed(0)} (%${plPerc.toFixed(1)})</span>`;
         }
 
