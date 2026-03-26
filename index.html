@@ -3,267 +3,224 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shannon Master Terminal 2026 | P/L Edition</title>
+    <title>Shannon Snowball Terminal 2026</title>
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #0a0c0f; --surface: #111417; --card: #161a1f; --border: #1e2530;
+            --bg: #0a0c0f; --surface: #111417; --card: #161a1f; --border: #252d38;
             --accent: #00e5ff; --green: #00ff88; --red: #ff3860;
             --text: #e0e8f0; --muted: #5a6a7a; --warn: #ff9500;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; padding: 10px; max-width: 850px; margin: auto; }
+        body { background: var(--bg); color: var(--text); font-family: 'Rajdhani', sans-serif; padding: 10px; max-width: 900px; margin: auto; }
         
-        /* Master Header */
-        .master-header { background: var(--surface); padding: 20px; border-radius: 12px; border: 1px solid var(--accent); margin-bottom: 10px; text-align: center; box-shadow: 0 0 20px rgba(0,229,255,0.1); }
-        .total-usd { font-size: 32px; font-family: 'Share Tech Mono'; color: var(--green); font-weight: 700; line-height: 1; }
-        .total-try { font-size: 14px; color: var(--muted); margin-top: 5px; }
-        .pl-global { font-size: 16px; margin-top: 8px; font-weight: 700; }
+        /* Master Stats */
+        .master-header { background: var(--surface); padding: 20px; border-radius: 12px; border: 1px solid var(--accent); margin-bottom: 12px; text-align: center; }
+        .total-usd { font-size: 34px; font-family: 'Share Tech Mono'; color: var(--green); }
+        .sub-stats { display: flex; justify-content: space-around; margin-top: 10px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 10px; }
 
-        /* Summary Grid */
-        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
-        .sum-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
-        .sum-val { font-family: 'Share Tech Mono'; font-size: 14px; font-weight: 700; display: block; }
-        .sum-label { font-size: 9px; color: var(--muted); text-transform: uppercase; margin-top: 3px; }
+        /* Grid & Tabs */
+        .tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+        .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); font-weight: 700; color: var(--muted); }
+        .tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+        .asset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 
-        /* Tabs & Lists */
-        .tabs { display: flex; background: var(--surface); border-radius: 7px; margin-bottom: 10px; padding: 4px; border: 1px solid var(--border); }
-        .tab { flex: 1; padding: 12px; text-align: center; cursor: pointer; border-radius: 5px; font-weight: 700; color: var(--muted); font-size: 12px; transition: 0.3s; }
-        .tab.active { background: var(--accent); color: #000; }
-        .portfolio-section { display: none; }
-        .portfolio-section.active { display: block; }
-        .asset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-
-        /* Card Styles */
-        .card { background: var(--card); border: 2px solid var(--border); border-radius: 10px; padding: 15px; position: relative; transition: 0.3s; }
-        .card.signal-buy { border-color: var(--green); box-shadow: 0 0 10px rgba(0,255,136,0.1); }
-        .card.signal-sell { border-color: var(--red); box-shadow: 0 0 10px rgba(255,56,96,0.1); }
-        .ticker-row { display: flex; justify-content: space-between; font-weight: 700; font-size: 16px; margin-bottom: 5px; }
-        .price-info { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 8px; }
-        .pl-tag { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+        /* Snowball Card */
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 15px; position: relative; }
+        .card.alert-buy { border: 2px solid var(--green); box-shadow: 0 0 15px rgba(0,255,136,0.1); }
+        .card.alert-sell { border: 2px solid var(--red); box-shadow: 0 0 15px rgba(255,56,96,0.1); }
         
-        /* Progress & Signal */
-        .band-bar { height: 6px; background: #000; border-radius: 3px; margin: 10px 0; position: relative; overflow: hidden; }
-        .band-fill { height: 100%; transition: width 0.5s; position: absolute; }
-        .signal-box { margin-top: 10px; font-weight: 700; padding: 8px; border-radius: 6px; font-size: 11px; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
-        .buy { background: rgba(0,255,136,0.12); color: var(--green); border: 1px solid var(--green); }
-        .sell { background: rgba(255,56,96,0.12); color: var(--red); border: 1px solid var(--red); }
-        .ok-signal { background: rgba(0,229,255,0.05); color: var(--muted); border: 1px solid var(--border); }
-
-        /* History & Utils */
-        .btn { width: 100%; padding: 14px; border-radius: 8px; border: 2px solid var(--accent); background: rgba(0,229,255,0.08); color: var(--accent); font-weight: 700; cursor: pointer; margin-bottom: 15px; font-family: 'Rajdhani'; letter-spacing: 1px; }
-        .btn:hover { background: rgba(0,229,255,0.15); box-shadow: 0 0 15px rgba(0,229,255,0.2); }
-        .log-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 15px; margin-top: 15px; }
-        .trade-item { background: var(--card); padding: 10px; border-radius: 6px; margin-bottom: 8px; font-size: 11px; border-left: 4px solid var(--muted); }
+        .ticker-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .ticker-name { font-size: 20px; font-weight: 700; color: var(--accent); }
         
-        .up { color: var(--green); }
-        .down { color: var(--red); }
+        /* Input Fields */
+        .input-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+        .field { background: #000; border: 1px solid var(--border); border-radius: 4px; padding: 5px; color: var(--text); width: 100%; font-family: 'Share Tech Mono'; font-size: 13px; }
+        .label { font-size: 9px; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; display: block; }
 
-        @media(max-width: 650px) { .asset-grid { grid-template-columns: 1fr; } .summary-grid { grid-template-columns: 1fr 1fr; } }
+        /* Progress & Snowball Visual */
+        .snow-track { height: 8px; background: #000; border-radius: 4px; margin: 15px 0 5px 0; overflow: hidden; position: relative; }
+        .snow-bar { height: 100%; transition: width 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .target-line { position: absolute; top:0; height:100%; width:2px; background:#fff; z-index:5; }
+
+        /* Signal Box */
+        .signal { margin-top: 12px; padding: 10px; border-radius: 6px; text-align: center; font-weight: 700; font-size: 13px; letter-spacing: 1px; }
+        .sig-buy { background: rgba(0,255,136,0.15); color: var(--green); border: 1px solid var(--green); }
+        .sig-sell { background: rgba(255,56,96,0.15); color: var(--red); border: 1px solid var(--red); }
+        .sig-ok { background: rgba(90,106,122,0.1); color: var(--muted); border: 1px solid var(--border); }
+
+        .btn-main { width: 100%; padding: 15px; border-radius: 8px; border: none; background: var(--accent); color: #000; font-weight: 700; cursor: pointer; margin-bottom: 15px; font-family: 'Rajdhani'; font-size: 16px; }
+        
+        .up { color: var(--green); } .down { color: var(--red); }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
     <div class="master-header">
-        <div style="font-size:11px; color:var(--accent); letter-spacing:3px; margin-bottom:5px;">MASTER PORTFOLIO STATUS</div>
-        <div class="total-usd" id="master-usd">$0.00</div>
-        <div class="total-try" id="master-try">0.00 TL</div>
-        <div class="pl-global" id="master-pl">P/L: --</div>
+        <div style="font-size:11px; color:var(--accent); letter-spacing:2px;">SNOWBALL TERMINAL VALUE</div>
+        <div class="total-usd" id="total-usd">$0.00</div>
+        <div class="sub-stats">
+            <span id="total-pl">P/L: --</span>
+            <span id="usd-rate">USD/TRY: --</span>
+        </div>
     </div>
 
-    <div class="summary-grid">
-        <div class="sum-box"><span class="sum-val up" id="sum-profit">+$0</span><span class="sum-label">Net Kâr (Profit)</span></div>
-        <div class="sum-box"><span class="sum-val" id="sum-alerts" style="color:var(--warn)">0</span><span class="sum-label">Sinyal (Alerts)</span></div>
-        <div class="sum-box"><span class="sum-val" id="sum-rate" style="color:var(--accent)">0.00</span><span class="sum-label">USD/TRY Rate</span></div>
-        <div class="sum-box"><span class="sum-val" id="sum-cost" style="color:var(--muted)">$0</span><span class="sum-label">Ana Para (Cost)</span></div>
-    </div>
-
-    <button class="btn" id="main-btn" onclick="fetchAllPrices()">🔄 PİYASAYI GÜNCELLE VE ANALİZ ET (Sync Market)</button>
-    <div id="spinner" style="display:none; text-align:center; font-size:12px; color:var(--muted); margin-bottom:15px;">⏳ Veriler senkronize ediliyor (Syncing data)...</div>
+    <button class="btn-main" onclick="updateAll()">🔄 PİYASA VERİLERİNİ ÇEK & HESAPLA</button>
 
     <div class="tabs">
-        <div class="tab active" onclick="switchTab('p1', event)">PORTFÖY 1 <span id="badge-p1"></span></div>
-        <div class="tab" onclick="switchTab('p2', event)">PORTFÖY 2 <span id="badge-p2"></span></div>
+        <div class="tab active" onclick="switchTab('p1', event)">PORTFÖY 1</div>
+        <div class="tab" onclick="switchTab('p2', event)">PORTFÖY 2</div>
     </div>
 
-    <div id="p1" class="portfolio-section active"><div class="asset-grid" id="container-p1"></div></div>
-    <div id="p2" class="portfolio-section"><div class="asset-grid" id="container-p2"></div></div>
-
-    <div class="log-panel">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <span style="font-size:12px; font-weight:700; color:var(--accent);">📜 İŞLEM GEÇMİŞİ (TRADE LOG)</span>
-            <button onclick="clearHistory()" style="background:none; border:none; color:var(--red); font-size:10px; cursor:pointer;">GEÇMİŞİ SİL</button>
-        </div>
-        <div id="trade-list" style="max-height:250px; overflow-y:auto;"></div>
-    </div>
+    <div id="p1" class="portfolio-section asset-grid"></div>
+    <div id="p2" class="portfolio-section asset-grid hidden"></div>
 
     <script>
-        const P1_DATA = [
-            {ticker:'AMDG', target:20, sapma:2, lot:758, cost:25.98, color:'#00e5ff'},
-            {ticker:'SPXL', target:20, sapma:2, lot:85, cost:164.67, color:'#ff6d00'},
-            {ticker:'NVDU', target:20, sapma:2, lot:161, cost:103.82, color:'#00ff88'},
-            {ticker:'TSLL', target:20, sapma:2, lot:1288, cost:15.95, color:'#ffd700'},
-            {ticker:'TMF', target:20, sapma:2, lot:440, cost:40.63, color:'#a78bfa'}
-        ];
-        const P2_DATA = [
-            {ticker:'TEXU', target:20, sapma:3, lot:109, cost:24.81, color:'#00e5ff'},
-            {ticker:'TTXU', target:20, sapma:3, lot:278, cost:21.39, color:'#ff6d00'},
-            {ticker:'TSXU', target:20, sapma:3, lot:147, cost:31.75, color:'#00ff88'},
-            {ticker:'TBXU', target:20, sapma:3, lot:142, cost:30.41, color:'#ffd700'},
-            {ticker:'UGL', target:10, sapma:2, lot:40, cost:57.92, color:'#ffffff'},
-            {ticker:'TYD', target:10, sapma:2, lot:92, cost:25.55, color:'#a78bfa'}
-        ];
+        // --- DATA SETUP ---
+        const CONFIG = {
+            p1: [
+                {t:'AMDG', target:20, sapma:2, lot:758, cost:25.98, color:'#00e5ff'},
+                {t:'SPXL', target:20, sapma:2, lot:85, cost:164.67, color:'#ff6d00'},
+                {t:'NVDU', target:20, sapma:2, lot:161, cost:103.82, color:'#00ff88'},
+                {t:'TSLL', target:20, sapma:2, lot:1288, cost:15.95, color:'#ffd700'},
+                {t:'TMF', target:20, sapma:2, lot:440, cost:40.63, color:'#a78bfa'}
+            ],
+            p2: [
+                {t:'TEXU', target:20, sapma:3, lot:109, cost:24.81, color:'#00e5ff'},
+                {t:'TTXU', target:20, sapma:3, lot:278, cost:21.39, color:'#ff6d00'},
+                {t:'TSXU', target:20, sapma:3, lot:147, cost:31.75, color:'#00ff88'},
+                {t:'TBXU', target:20, sapma:3, lot:142, cost:30.41, color:'#ffd700'},
+                {t:'UGL', target:10, sapma:2, lot:40, cost:57.92, color:'#ffffff'},
+                {t:'TYD', target:10, sapma:2, lot:92, cost:25.55, color:'#a78bfa'}
+            ]
+        };
 
         const FINNHUB_KEY = 'd722oopr01qjeeefm31gd722oopr01qjeeefm320';
-        const EXCHANGE_API = 'https://open.er-api.com/v6/latest/USD';
+        let livePrices = {};
         let usdTry = 32.50;
-        let tradeHistory = JSON.parse(localStorage.getItem('shn_history_v2')) || [];
 
-        async function fetchAllPrices() {
-            const btn = document.getElementById('main-btn');
-            const spinner = document.getElementById('spinner');
-            btn.disabled = true; spinner.style.display = 'block';
+        // Yerel verileri yükle (Input değişikliklerini korur)
+        let userStats = JSON.parse(localStorage.getItem('shn_user_stats')) || {};
 
+        async function updateAll() {
             try {
-                const exRes = await fetch(EXCHANGE_API);
-                const exData = await exRes.json();
-                usdTry = exData.rates.TRY;
-                document.getElementById('sum-rate').textContent = usdTry.toFixed(2);
+                // Kur güncelle
+                const ex = await fetch('https://open.er-api.com/v6/latest/USD').then(r => r.json());
+                usdTry = ex.rates.TRY;
+                document.getElementById('usd-rate').textContent = `USD/TRY: ${usdTry.toFixed(2)}`;
 
-                const allAssets = [...P1_DATA, ...P2_DATA];
-                const priceRequests = allAssets.map(a => 
-                    fetch(`https://finnhub.io/api/v1/quote?symbol=${a.ticker}&token=${FINNHUB_KEY}`).then(r => r.json())
-                );
-                const priceResults = await Promise.all(priceRequests);
-                priceResults.forEach((res, i) => { if(res.c) allAssets[i].currentPrice = res.c; });
+                // Fiyatları çek
+                const tickers = [...CONFIG.p1, ...CONFIG.p2].map(a => a.t);
+                const results = await Promise.all(tickers.map(t => 
+                    fetch(`https://finnhub.io/api/v1/quote?symbol=${t}&token=${FINNHUB_KEY}`).then(r => r.json())
+                ));
+                results.forEach((res, i) => { if(res.c) livePrices[tickers[i]] = res.c; });
 
-                calculateAll();
-            } catch (e) { console.error("Sync Error:", e); } 
-            finally { btn.disabled = false; spinner.style.display = 'none'; }
+                render();
+            } catch (e) { console.error(e); }
         }
 
-        function calculateAll() {
-            let totalCurrentVal = 0;
-            let totalCostVal = 0;
-            const all = [...P1_DATA, ...P2_DATA];
-
-            all.forEach(a => {
-                const price = a.currentPrice || a.cost;
-                totalCurrentVal += (a.lot * price);
-                totalCostVal += (a.lot * a.cost);
-            });
-
-            const netPL = totalCurrentVal - totalCostVal;
-            const plPercent = (netPL / totalCostVal) * 100;
-
-            // Global Header Update
-            document.getElementById('master-usd').textContent = `$${totalCurrentVal.toLocaleString('en-US', {minimumFractionDigits:2})}`;
-            document.getElementById('master-try').textContent = `${(totalCurrentVal * usdTry).toLocaleString('tr-TR')} TL`;
-            document.getElementById('master-pl').innerHTML = `P/L: <span class="${netPL >= 0 ? 'up' : 'down'}">${netPL >= 0 ? '+' : ''}$${netPL.toLocaleString('en-US', {minimumFractionDigits:2})} (%${plPercent.toFixed(2)})</span>`;
-            
-            document.getElementById('sum-profit').textContent = `${netPL >= 0 ? '+' : ''}$${netPL.toFixed(0)}`;
-            document.getElementById('sum-profit').className = `sum-val ${netPL >= 0 ? 'up' : 'down'}`;
-            document.getElementById('sum-cost').textContent = `$${totalCostVal.toFixed(0)}`;
-
-            let totalAlerts = 0;
-            totalAlerts += renderPortfolio('p1', P1_DATA, totalCurrentVal);
-            totalAlerts += renderPortfolio('p2', P2_DATA, totalCurrentVal);
-            
-            document.getElementById('sum-alerts').textContent = totalAlerts;
-            renderTradeHistory();
+        function render() {
+            renderSection('p1', CONFIG.p1);
+            renderSection('p2', CONFIG.p2);
+            updateGlobalStats();
         }
 
-        function renderPortfolio(pid, data, totalUsd) {
-            const container = document.getElementById(`container-${pid}`);
+        function renderSection(id, data) {
+            const container = document.getElementById(id);
             container.innerHTML = '';
-            let alerts = 0;
+            
+            // Toplam Portföy Değeri Hesapla
+            const totalVal = data.reduce((sum, a) => {
+                const lot = userStats[`lot-${a.t}`] || a.lot;
+                return sum + (lot * (livePrices[a.t] || a.cost));
+            }, 0);
 
-            data.forEach(asset => {
-                const price = asset.currentPrice || asset.cost;
-                const value = asset.lot * price;
-                const weight = (value / totalUsd) * 100;
-                const diff = weight - asset.target;
+            data.forEach(a => {
+                const currentLot = userStats[`lot-${a.t}`] || a.lot;
+                const currentCost = userStats[`cost-${a.t}`] || a.cost;
+                const price = livePrices[a.t] || currentCost;
+                const value = currentLot * price;
+                const weight = (value / totalVal) * 100;
                 
-                // P/L for Asset
-                const assetPL = (price - asset.cost) * asset.lot;
-                const assetPLPerc = ((price - asset.cost) / asset.cost) * 100;
-
-                let signalType = 'ok-signal';
-                let signalMsg = 'DENGEDE (Balanced)';
-                let lotsTrade = 0;
-
-                if (Math.abs(diff) > asset.sapma) {
-                    alerts++;
-                    const targetVal = totalUsd * (asset.target / 100);
-                    lotsTrade = Math.round((targetVal - value) / price);
-                    
-                    if (lotsTrade > 0) {
-                        signalType = 'buy'; signalMsg = `ALIM: ${lotsTrade} LOT`;
-                        logAction(asset.ticker, 'buy', lotsTrade, price);
-                    } else {
-                        signalType = 'sell'; signalMsg = `SATIŞ: ${Math.abs(lotsTrade)} LOT`;
-                        logAction(asset.ticker, 'sell', Math.abs(lotsTrade), price);
+                // Rebalancing Mantığı
+                const diff = weight - a.target;
+                const targetValue = totalVal * (a.target / 100);
+                const tradeLots = Math.round((targetValue - value) / price);
+                
+                let sigClass = 'sig-ok', sigText = 'DENGEDE', alertClass = '';
+                if (Math.abs(diff) > a.sapma) {
+                    if (tradeLots > 0) { 
+                        sigClass = 'sig-buy'; sigText = `AL: +${tradeLots} LOT`; alertClass = 'alert-buy';
+                    } else { 
+                        sigClass = 'sig-sell'; sigText = `SAT: ${Math.abs(tradeLots)} LOT`; alertClass = 'alert-sell';
                     }
                 }
 
                 container.innerHTML += `
-                    <div class="card signal-${signalType}">
-                        <div class="ticker-row">
-                            <span>${asset.ticker}</span>
-                            <span class="pl-tag ${assetPL >= 0 ? 'up' : 'down'}" style="background:rgba(255,255,255,0.05)">
-                                ${assetPL >= 0 ? '▲' : '▼'} %${Math.abs(assetPLPerc).toFixed(1)}
-                            </span>
+                    <div class="card ${alertClass}">
+                        <div class="ticker-head">
+                            <span class="ticker-name">${a.t}</span>
+                            <span style="font-family: 'Share Tech Mono';">$${price.toFixed(2)}</span>
                         </div>
-                        <div class="price-info">
-                            <span>Fiyat: $${price.toFixed(2)}</span>
-                            <span>Maliyet: $${asset.cost.toFixed(2)}</span>
+                        
+                        <div class="input-group">
+                            <div>
+                                <label class="label">Lot Miktarı</label>
+                                <input type="number" class="field" value="${currentLot}" onchange="save('${a.t}', 'lot', this.value)">
+                            </div>
+                            <div>
+                                <label class="label">Maliyet ($)</label>
+                                <input type="number" class="field" value="${currentCost}" onchange="save('${a.t}', 'cost', this.value)">
+                            </div>
                         </div>
-                        <div class="weight-info">
-                            <span>Ağırlık: %${weight.toFixed(2)}</span>
-                            <span>Hedef: %${asset.target}</span>
+
+                        <div class="weight-info" style="display:flex; justify-content:space-between; font-size:11px;">
+                            <span>Ağırlık: %${weight.toFixed(1)}</span>
+                            <span>Hedef: %${a.target}</span>
                         </div>
-                        <div class="band-bar">
-                            <div class="band-fill" style="width:${Math.min(100, (weight/asset.target)*100)}%; background:${asset.color}"></div>
+
+                        <div class="snow-track">
+                            <div class="snow-bar" style="width:${Math.min(100, (weight/a.target)*100)}%; background:${a.color}"></div>
+                            <div class="target-line" style="left:50%"></div>
                         </div>
-                        <div class="signal-box ${signalType}">${signalMsg}</div>
+
+                        <div class="signal ${sigClass}">${sigText}</div>
                     </div>
                 `;
             });
-            document.getElementById(`badge-${pid}`).innerHTML = alerts > 0 ? `<span style="color:var(--red); font-size:10px;">(${alerts})</span>` : '';
-            return alerts;
         }
 
-        function logAction(ticker, type, lots, price) {
-            const today = new Date().toLocaleDateString();
-            const exists = tradeHistory.find(h => h.ticker === ticker && h.date.startsWith(today) && h.type === type);
-            if(!exists) {
-                tradeHistory.unshift({ ticker, type, lots, price: price.toFixed(2), total: (lots*price).toFixed(2), date: new Date().toLocaleString('tr-TR') });
-                if(tradeHistory.length > 50) tradeHistory.pop();
-                localStorage.setItem('shn_history_v2', JSON.stringify(tradeHistory));
-            }
+        function save(ticker, field, val) {
+            userStats[`${field}-${ticker}`] = parseFloat(val);
+            localStorage.setItem('shn_user_stats', JSON.stringify(userStats));
+            render(); // Anında yeniden hesapla
         }
 
-        function renderTradeHistory() {
-            document.getElementById('trade-list').innerHTML = tradeHistory.map(h => `
-                <div class="trade-item" style="border-left-color: ${h.type === 'buy' ? 'var(--green)' : 'var(--red)'}">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                        <strong>${h.ticker}</strong> <span>${h.date}</span>
-                    </div>
-                    ${h.type === 'buy' ? '🟢 BUY' : '🔴 SELL'}: ${h.lots} Lot @ $${h.price} (Total: $${h.total})
-                </div>
-            `).join('');
+        function updateGlobalStats() {
+            let total = 0, costTotal = 0;
+            [...CONFIG.p1, ...CONFIG.p2].forEach(a => {
+                const lot = userStats[`lot-${a.t}`] || a.lot;
+                const cost = userStats[`cost-${a.t}`] || a.cost;
+                total += (lot * (livePrices[a.t] || cost));
+                costTotal += (lot * cost);
+            });
+            
+            document.getElementById('total-usd').textContent = `$${total.toLocaleString('en-US', {minimumFractionDigits:2})}`;
+            const pl = total - costTotal;
+            const plPerc = (pl / costTotal) * 100;
+            document.getElementById('total-pl').innerHTML = `P/L: <span class="${pl>=0?'up':'down'}">${pl>=0?'+':''}$${pl.toFixed(0)} (%${plPerc.toFixed(1)})</span>`;
         }
-
-        function clearHistory() { if(confirm("Tüm geçmiş silinsin mi?")) { tradeHistory = []; localStorage.removeItem('shn_history_v2'); renderTradeHistory(); } }
 
         function switchTab(id, e) {
-            document.querySelectorAll('.portfolio-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.portfolio-section').forEach(s => s.classList.add('hidden'));
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
+            document.getElementById(id).classList.remove('hidden');
             e.currentTarget.classList.add('active');
         }
 
-        window.onload = () => { fetchAllPrices(); setInterval(fetchAllPrices, 300000); };
+        window.onload = updateAll;
     </script>
 </body>
 </html>
