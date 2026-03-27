@@ -57,12 +57,12 @@ canvas{display:block;width:100% !important}
 .inp:focus{border-color:var(--accent)}
 
 /* BANT ÇUBUĞU */
-.band-bar{height:5px;background:var(--bg);border-radius:3px;margin:4px 0;position:relative;overflow:visible}
+.band-bar{height:6px;background:var(--bg);border-radius:3px;margin:6px 0;position:relative;overflow:visible}
 .band-fill{height:100%;border-radius:3px;transition:width 0.5s;position:absolute;top:0;left:0}
-.band-line{position:absolute;top:-3px;height:11px;width:2px;border-radius:1px}
-.band-line-target{background:rgba(255,255,255,0.5)}
-.band-line-low{background:rgba(255,56,96,0.7)}
-.band-line-high{background:rgba(255,56,96,0.7)}
+.band-line{position:absolute;top:-5px;height:16px;width:3px;border-radius:1px}
+.band-line-target{background:rgba(255,255,255,0.75);box-shadow:0 0 4px rgba(255,255,255,0.4)}
+.band-line-low{background:rgba(255,56,96,0.9);box-shadow:0 0 4px rgba(255,56,96,0.5)}
+.band-line-high{background:rgba(255,56,96,0.9);box-shadow:0 0 4px rgba(255,56,96,0.5)}
 
 /* ANA SİNYAL KUTUSU */
 .signal-box{margin-top:4px;font-weight:700;padding:4px 6px;border-radius:5px;font-size:9px}
@@ -452,82 +452,128 @@ function renderPort(portId, data, snap, snowHist){
 
 // ── SATIŞ sinyali → bu satıştan gelen parayla hangi alımları yapabilirsin ──
 // Her alım sinyali varlığının tam lot ihtiyacını göster, para yetiyorsa tam yapsın
+// ── SATIŞ sinyali → satıştan gelen gelirle hangi varlıklardan kaç lot al ──
+// Önce alım sinyali olanlar, yoksa veya para artarsa en az ağırlıklı diğer varlıklar.
+// Satıcının kendisi hariç. Nakit sıfır: 1 lot alamayan kuruş artığı gösterilmez.
 function buildSellFinanceHint(seller, allAssets){
-  const buyers = allAssets.filter(a => a.type==='buy' && a.lotDiff>0 && a.price>0);
-  if(buyers.length===0){
+  // Alım sinyali olanlar önce (en az ağırlıklıdan başla), sonra diğerleri
+  const diger = allAssets
+    .filter(a => a.ticker !== seller.ticker && a.price > 0)
+    .sort((a, b) => {
+      // Alım sinyali olanlar başa, sonra ağırlık farkına göre sırala (en eksik önce)
+      const aScore = a.type === 'buy' ? 0 : 1;
+      const bScore = b.type === 'buy' ? 0 : 1;
+      if(aScore !== bScore) return aScore - bScore;
+      return (a.weight - a.target) - (b.weight - b.target); // en eksik önce
+    });
+
+  if(diger.length === 0){
     return `<div class="rebal-box rebal-sell">
-      <div class="rebal-title">📤 ${seller.ticker}: ${seller.lotDiff} LOT SAT → $${fmt(seller.usd,0)}</div>
-      <div style="font-size:7px;color:var(--muted);margin-top:2px">Şu an başka alım sinyali yok — geliri nakit tut</div>
+      <div class="rebal-title">📤 ${seller.ticker} → ${seller.lotDiff} LOT SAT</div>
+      <div style="font-size:7px;color:var(--muted);margin-top:2px">Dağıtılacak başka varlık yok</div>
     </div>`;
   }
 
-  let kasa = seller.usd; // satıştan gelen nakit
-  const rows = buyers.map(b=>{
-    // Bu alım için tam lot ihtiyacı: b.lotDiff
-    // Kasada yetecek kadar lot al
-    const maxLots = b.price>0 ? Math.floor(kasa/b.price) : 0;
-    const alinacakLot = Math.min(b.lotDiff, maxLots);
-    const harcanan = alinacakLot * b.price;
-    if(alinacakLot <= 0) return `<div class="rebal-row">
-      <span class="rebal-ticker" style="color:${b.color}">${b.ticker}</span>
-      <span class="rebal-action-buy" style="opacity:0.4">AL ${b.lotDiff} LOT</span>
-      <span class="rebal-usd" style="color:var(--red)">Para yetmez</span>
-    </div>`;
-    kasa -= harcanan;
-    const eksik = b.usd - harcanan;
-    const eksikStr = eksik > 1 ? ` <span style="color:var(--red);font-size:7px">(+$${fmt(eksik,0)} ekle)</span>` : '';
-    return `<div class="rebal-row">
-      <span class="rebal-ticker" style="color:${b.color}">${b.ticker}</span>
-      <span class="rebal-action-buy">AL ${alinacakLot} LOT${alinacakLot<b.lotDiff?' ('+b.lotDiff+' lazım)':''}</span>
-      <span class="rebal-usd">$${fmt(harcanan,0)}${eksikStr}</span>
-    </div>`;
-  }).join('');
+  let kasa = seller.usd;
+  const plan = [];
 
-  const kalanStr = kasa>1 ? `<div style="font-size:7px;color:var(--muted);margin-top:3px">Kalan $${fmt(kasa,0)} nakit</div>` : '';
+  diger.forEach(b => {
+    if(kasa < b.price) return; // 1 lot bile alamıyoruz
+    const hedefLot = b.type === 'buy' ? b.lotDiff : Math.floor(kasa / b.price); // buy: ihtiyacı kadar, ok: kasayla alabileceği kadar
+    const maxLot = Math.min(hedefLot, Math.floor(kasa / b.price));
+    if(maxLot <= 0) return;
+    const harcanan = maxLot * b.price;
+    kasa -= harcanan;
+    const tam = b.type === 'buy' ? maxLot >= b.lotDiff : true;
+    plan.push({b, alinacakLot: maxLot, harcanan, tam, sinyal: b.type === 'buy'});
+  });
+
+  // Kalan kasayla buy sinyallerinde eksik lot varsa ekle
+  let devam = true;
+  while(devam && kasa > 0){
+    devam = false;
+    plan.forEach(p => {
+      if(p.sinyal && p.alinacakLot < p.b.lotDiff && kasa >= p.b.price){
+        p.alinacakLot++;
+        p.harcanan += p.b.price;
+        kasa -= p.b.price;
+        p.tam = p.alinacakLot >= p.b.lotDiff;
+        devam = true;
+      }
+    });
+  }
+
+  if(plan.length === 0){
+    return `<div class="rebal-box rebal-sell">
+      <div class="rebal-title">📤 ${seller.ticker} → ${seller.lotDiff} LOT SAT</div>
+      <div style="font-size:7px;color:var(--muted);margin-top:2px">Satış geliri ($${fmt(seller.usd,0)}) hiçbir varlık için yetmiyor</div>
+    </div>`;
+  }
+
+  const rows = plan.map(({b, alinacakLot, harcanan, tam, sinyal}) =>
+    `<div class="rebal-row">
+      <span class="rebal-ticker" style="color:${b.color}">${b.ticker}${sinyal ? '' : '<span style="font-size:7px;color:var(--muted)"> bant içi</span>'}</span>
+      <span class="rebal-action-buy">AL ${alinacakLot} LOT${sinyal && !tam ? ' / ' + b.lotDiff + ' lazım' : ''}</span>
+      <span class="rebal-usd" style="color:${tam ? 'var(--green)' : 'var(--accent)'}">$${fmt(harcanan,0)}</span>
+    </div>`
+  ).join('');
+
+  const altStr = kasa > 1
+    ? `<div style="font-size:7px;color:var(--muted);margin-top:3px">Lot bölünemez fark: $${fmt(kasa,0)}</div>`
+    : `<div style="font-size:7px;color:var(--green);margin-top:3px">✓ Gelir tam dağıtıldı</div>`;
 
   return `<div class="rebal-box rebal-sell">
-    <div class="rebal-title">📤 ${seller.ticker}: ${seller.lotDiff} LOT SAT ($${fmt(seller.usd,0)}) → alım planı</div>
-    ${rows}${kalanStr}
+    <div class="rebal-title">📤 ${seller.ticker} → ${seller.lotDiff} LOT SAT</div>
+    ${rows}${altStr}
   </div>`;
 }
 
-// ── ALIM sinyali → bu alımı finanse etmek için hangi varlıkları satmalısın ──
-// Her satış sinyali varlığının tam lot miktarını göster, ihtiyaç kadar kullan
+// ── ALIM sinyali → bu alımı finanse etmek için hangi varlıklardan kaç lot sat ──
+// Nakit sıfır prensibi: satış sinyali varlıklardan ihtiyaç kadar lot sat, fazlasını satma.
 function buildBuyFundHint(buyer, allAssets){
   const sellers = allAssets.filter(a => a.type==='sell' && a.lotDiff>0 && a.price>0);
   if(sellers.length===0){
     return `<div class="rebal-box rebal-buy">
-      <div class="rebal-title">📥 ${buyer.ticker}: ${buyer.lotDiff} LOT AL → $${fmt(buyer.usd,0)}</div>
+      <div class="rebal-title">📥 ${buyer.ticker} → ${buyer.lotDiff} LOT AL</div>
       <div style="font-size:7px;color:var(--muted);margin-top:2px">Satış sinyali yok — $${fmt(buyer.usd,0)} dışarıdan ekle</div>
     </div>`;
   }
 
-  let ihtiyac = buyer.usd; // alım için gereken nakit
-  const rows = sellers.map(s=>{
-    if(ihtiyac <= 0) return `<div class="rebal-row">
-      <span class="rebal-ticker" style="color:${s.color}">${s.ticker}</span>
-      <span class="rebal-action-sell" style="opacity:0.4">SAT ${s.lotDiff} LOT</span>
-      <span class="rebal-usd" style="color:var(--muted)">Gerek yok</span>
-    </div>`;
-    // Bu satıştan ne kadar lazım?
-    const kullanilan = Math.min(ihtiyac, s.usd);
-    const satilacakLot = s.price>0 ? Math.ceil(kullanilan/s.price) : 0;
+  // Her satıcıdan oransal pay al: toplam satış gelirinden bu alıcıya ne kadar düşüyor
+  const toplamSatis = sellers.reduce((s,a) => s + a.usd, 0);
+  let ihtiyac = buyer.usd;
+  const plan = [];
+
+  sellers.forEach(s => {
+    if(ihtiyac <= 0) return;
+    // Bu satıcıdan ihtiyaç kadar lot sat, fazlasını satma
+    const satilacakLot = s.price>0 ? Math.min(s.lotDiff, Math.ceil(ihtiyac / s.price)) : 0;
+    if(satilacakLot <= 0) return;
     const gelen = satilacakLot * s.price;
     ihtiyac -= gelen;
-    return `<div class="rebal-row">
-      <span class="rebal-ticker" style="color:${s.color}">${s.ticker}</span>
-      <span class="rebal-action-sell">SAT ${satilacakLot} LOT${satilacakLot<s.lotDiff?' (max '+s.lotDiff+')':''}</span>
-      <span class="rebal-usd">$${fmt(gelen,0)}</span>
-    </div>`;
-  }).join('');
+    plan.push({s, satilacakLot, gelen});
+  });
 
-  const eksikStr = ihtiyac>1
-    ? `<div style="font-size:7px;color:var(--red);margin-top:3px">⚠ Eksik $${fmt(ihtiyac,0)} dışarıdan ekle</div>`
-    : `<div style="font-size:7px;color:var(--green);margin-top:3px">✓ Satış geliri yeterli</div>`;
+  const eksik = ihtiyac > 0 ? ihtiyac : 0;
+  const fazla = ihtiyac < 0 ? Math.abs(ihtiyac) : 0;
+
+  const rows = plan.map(({s, satilacakLot, gelen}) =>
+    `<div class="rebal-row">
+      <span class="rebal-ticker" style="color:${s.color}">${s.ticker}</span>
+      <span class="rebal-action-sell">SAT ${satilacakLot} LOT${satilacakLot < s.lotDiff ? ' / ' + s.lotDiff + ' max' : ''}</span>
+      <span class="rebal-usd">$${fmt(gelen,0)}</span>
+    </div>`
+  ).join('');
+
+  const altStr = eksik > 1
+    ? `<div style="font-size:7px;color:var(--red);margin-top:3px">⚠ Eksik $${fmt(eksik,0)} — dışarıdan ekle</div>`
+    : fazla > 1
+      ? `<div style="font-size:7px;color:var(--muted);margin-top:3px">Lot bölünemez fark: $${fmt(fazla,0)}</div>`
+      : `<div style="font-size:7px;color:var(--green);margin-top:3px">✓ Tam karşılandı</div>`;
 
   return `<div class="rebal-box rebal-buy">
-    <div class="rebal-title">📥 ${buyer.ticker}: ${buyer.lotDiff} LOT AL ($${fmt(buyer.usd,0)}) → satış planı</div>
-    ${rows}${eksikStr}
+    <div class="rebal-title">📥 ${buyer.ticker} → ${buyer.lotDiff} LOT AL</div>
+    ${rows}${altStr}
   </div>`;
 }
 
@@ -587,37 +633,81 @@ function drawDualChart(id,data){
 // ── LOT GRAFİĞİ ──────────────────────────────────────────────────
 function drawLotChart(id,data,color){
   const canvas=document.getElementById(id);if(!canvas)return;
-  const PL=50,PR=8,PT=8,PB=22;
-  const W=canvas.width=canvas.offsetWidth||680, H=canvas.height=130;
+  const PL=58,PR=10,PT=12,PB=26;
+  const W=canvas.width=canvas.offsetWidth||680, H=canvas.height=140;
   const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,W,H);
-  if(data.length<2){ctx.fillStyle='rgba(255,255,255,0.1)';ctx.font='11px Rajdhani';ctx.textAlign='center';ctx.fillText('Veri bekleniyor...',W/2,H/2);return;}
+  if(data.length<2){
+    ctx.fillStyle='rgba(255,255,255,0.15)';ctx.font='12px Rajdhani';ctx.textAlign='center';
+    ctx.fillText('Veri bekleniyor...',W/2,H/2);return;
+  }
   const mn=Math.min(...data),mx=Math.max(...data);
-  const pad=(mx-mn)*0.1||mx*0.05||1;
+  const pad=(mx-mn)*0.12||mx*0.06||1;
   const yMin=Math.max(0,mn-pad),yMax=mx+pad,range=yMax-yMin||1,n=data.length;
-  const gW=W-PL-PR,gH=H-PT-PB,xOf=i=>PL+(i/(n-1))*gW,yOf=v=>PT+gH-((v-yMin)/range)*gH;
+  const gW=W-PL-PR,gH=H-PT-PB;
+  const xOf=i=>PL+(i/(n-1))*gW;
+  const yOf=v=>PT+gH-((v-yMin)/range)*gH;
+
+  // Grid çizgileri
   for(let i=0;i<=4;i++){
     const y=PT+(i/4)*gH;
-    ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PL,y);ctx.lineTo(W-PR,y);ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font='8px Share Tech Mono';ctx.textAlign='right';
-    ctx.fillText(Math.round(yMin+((4-i)/4)*range).toLocaleString(),PL-3,y+3);
+    ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(PL,y);ctx.lineTo(W-PR,y);ctx.stroke();
+    // Y ekseni etiketleri — daha büyük ve parlak
+    const val=Math.round(yMin+((4-i)/4)*range);
+    ctx.fillStyle='rgba(255,255,255,0.75)';
+    ctx.font='bold 9px Share Tech Mono';
+    ctx.textAlign='right';
+    ctx.fillText(val.toLocaleString(),PL-5,y+3);
   }
-  ctx.fillStyle='rgba(255,255,255,0.25)';ctx.font='8px Share Tech Mono';ctx.textAlign='center';
+
+  // X ekseni etiketleri
+  ctx.fillStyle='rgba(255,255,255,0.35)';ctx.font='8px Share Tech Mono';ctx.textAlign='center';
   const st=Math.max(1,Math.floor(n/6));
-  for(let i=0;i<n;i+=st) ctx.fillText(i+1,xOf(i),H-3);
-  ctx.fillText(n,xOf(n-1),H-3);
-  ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(PL,PT);ctx.lineTo(PL,PT+gH);ctx.lineTo(W-PR,PT+gH);ctx.stroke();
+  for(let i=0;i<n;i+=st) ctx.fillText(i+1,xOf(i),H-5);
+  if((n-1)%st!==0) ctx.fillText(n,xOf(n-1),H-5);
+
+  // Eksen çizgileri
+  ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(PL,PT);ctx.lineTo(PL,PT+gH);ctx.lineTo(W-PR,PT+gH);ctx.stroke();
+
+  // Alan dolgusu
   const h2r=h=>{const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return`${r},${g},${b}`;};
   const rgb=color.startsWith('#')?h2r(color):'255,255,255';
   const grad=ctx.createLinearGradient(0,PT,0,PT+gH);
-  grad.addColorStop(0,`rgba(${rgb},0.12)`);grad.addColorStop(1,`rgba(${rgb},0)`);
-  ctx.beginPath();data.forEach((v,i)=>{const x=xOf(i),y=yOf(v);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
-  ctx.lineTo(xOf(n-1),PT+gH);ctx.lineTo(PL,PT+gH);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
-  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.lineJoin='round';ctx.beginPath();
-  data.forEach((v,i)=>{const x=xOf(i),y=yOf(v);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();
+  grad.addColorStop(0,`rgba(${rgb},0.15)`);grad.addColorStop(1,`rgba(${rgb},0)`);
+  ctx.beginPath();
+  data.forEach((v,i)=>{const x=xOf(i),y=yOf(v);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.lineTo(xOf(n-1),PT+gH);ctx.lineTo(PL,PT+gH);ctx.closePath();
+  ctx.fillStyle=grad;ctx.fill();
+
+  // Çizgi
+  ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.beginPath();
+  data.forEach((v,i)=>{const x=xOf(i),y=yOf(v);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();
+
+  // Son nokta
   const lx=xOf(n-1),ly=yOf(data[n-1]);
-  ctx.beginPath();ctx.arc(lx,ly,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,0.7)';ctx.font='8px Share Tech Mono';ctx.textAlign='right';
-  ctx.fillText(data[n-1].toLocaleString()+' lot',W-PR-2,PT+10);
+  ctx.beginPath();ctx.arc(lx,ly,4,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+
+  // Son değer etiketi — büyük, okunaklı, noktanın yanında
+  const label=data[n-1].toLocaleString()+' lot';
+  ctx.font='bold 10px Share Tech Mono';
+  const tw=ctx.measureText(label).width;
+  const lx2=lx+tw+8>W-PR ? lx-tw-6 : lx+6;
+  // Arka plan kutusu
+  ctx.fillStyle='rgba(10,12,15,0.75)';
+  ctx.fillRect(lx2-2,ly-9,tw+4,13);
+  ctx.fillStyle='rgba(255,255,255,0.9)';
+  ctx.textAlign='left';
+  ctx.fillText(label,lx2,ly+1);
+
+  // Her veri noktasına küçük nokta (çok nokta varsa atla)
+  if(n<=20){
+    data.forEach((v,i)=>{
+      ctx.beginPath();ctx.arc(xOf(i),yOf(v),2,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${rgb},0.5)`;ctx.fill();
+    });
+  }
 }
 
 // ── MODAL ─────────────────────────────────────────────────────────
