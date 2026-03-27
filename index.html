@@ -450,59 +450,84 @@ function renderPort(portId, data, snap, snowHist){
   if(snowHist.length>60) snowHist.shift();
 }
 
-// ── SATIŞ → finanse edilecek alımlar ─────────────────────────────
-// "Bu varlığı satarsan, gelen parayla şu alımları karşılayabilirsin"
+// ── SATIŞ sinyali → bu satıştan gelen parayla hangi alımları yapabilirsin ──
+// Her alım sinyali varlığının tam lot ihtiyacını göster, para yetiyorsa tam yapsın
 function buildSellFinanceHint(seller, allAssets){
-  const buyers = allAssets.filter(a => a.type==='buy' && a.usd>0);
-  if(buyers.length===0) return `<div class="rebal-box rebal-sell"><div class="rebal-title">💡 Satıştan Gelecek: $${fmt(seller.usd,0)} — Şu an alım sinyali yok</div></div>`;
+  const buyers = allAssets.filter(a => a.type==='buy' && a.lotDiff>0 && a.price>0);
+  if(buyers.length===0){
+    return `<div class="rebal-box rebal-sell">
+      <div class="rebal-title">📤 ${seller.ticker}: ${seller.lotDiff} LOT SAT → $${fmt(seller.usd,0)}</div>
+      <div style="font-size:7px;color:var(--muted);margin-top:2px">Şu an başka alım sinyali yok — geliri nakit tut</div>
+    </div>`;
+  }
 
-  let remaining = seller.usd;
+  let kasa = seller.usd; // satıştan gelen nakit
   const rows = buyers.map(b=>{
-    if(remaining<=0) return '';
-    const cover = Math.min(remaining, b.usd);
-    const lots  = b.price>0 ? Math.round(cover/b.price) : 0;
-    remaining  -= cover;
-    const pct   = Math.round((cover/b.usd)*100);
+    // Bu alım için tam lot ihtiyacı: b.lotDiff
+    // Kasada yetecek kadar lot al
+    const maxLots = b.price>0 ? Math.floor(kasa/b.price) : 0;
+    const alinacakLot = Math.min(b.lotDiff, maxLots);
+    const harcanan = alinacakLot * b.price;
+    if(alinacakLot <= 0) return `<div class="rebal-row">
+      <span class="rebal-ticker" style="color:${b.color}">${b.ticker}</span>
+      <span class="rebal-action-buy" style="opacity:0.4">AL ${b.lotDiff} LOT</span>
+      <span class="rebal-usd" style="color:var(--red)">Para yetmez</span>
+    </div>`;
+    kasa -= harcanan;
+    const eksik = b.usd - harcanan;
+    const eksikStr = eksik > 1 ? ` <span style="color:var(--red);font-size:7px">(+$${fmt(eksik,0)} ekle)</span>` : '';
     return `<div class="rebal-row">
       <span class="rebal-ticker" style="color:${b.color}">${b.ticker}</span>
-      <span class="rebal-action-buy">AL ${lots} LOT</span>
-      <span class="rebal-usd">$${fmt(cover,0)} (%${pct})</span>
+      <span class="rebal-action-buy">AL ${alinacakLot} LOT${alinacakLot<b.lotDiff?' ('+b.lotDiff+' lazım)':''}</span>
+      <span class="rebal-usd">$${fmt(harcanan,0)}${eksikStr}</span>
     </div>`;
   }).join('');
 
-  const leftover = remaining>0 ? `<div style="font-size:7px;color:var(--muted);margin-top:3px">Kalan $${fmt(remaining,0)} nakit tutulabilir</div>` : '';
+  const kalanStr = kasa>1 ? `<div style="font-size:7px;color:var(--muted);margin-top:3px">Kalan $${fmt(kasa,0)} nakit</div>` : '';
 
   return `<div class="rebal-box rebal-sell">
-    <div class="rebal-title">💡 $${fmt(seller.usd,0)} satış geliri → alım önerisi</div>
-    ${rows}${leftover}
+    <div class="rebal-title">📤 ${seller.ticker}: ${seller.lotDiff} LOT SAT ($${fmt(seller.usd,0)}) → alım planı</div>
+    ${rows}${kalanStr}
   </div>`;
 }
 
-// ── ALIM → finanse eden satışlar ──────────────────────────────────
-// "Bu alımı finanse etmek için şu varlıklardan sat"
+// ── ALIM sinyali → bu alımı finanse etmek için hangi varlıkları satmalısın ──
+// Her satış sinyali varlığının tam lot miktarını göster, ihtiyaç kadar kullan
 function buildBuyFundHint(buyer, allAssets){
-  const sellers = allAssets.filter(a => a.type==='sell' && a.usd>0);
-  if(sellers.length===0) return `<div class="rebal-box rebal-buy"><div class="rebal-title">💡 Alım için $${fmt(buyer.usd,0)} gerekli — Satış sinyali yok, dışarıdan ekle</div></div>`;
+  const sellers = allAssets.filter(a => a.type==='sell' && a.lotDiff>0 && a.price>0);
+  if(sellers.length===0){
+    return `<div class="rebal-box rebal-buy">
+      <div class="rebal-title">📥 ${buyer.ticker}: ${buyer.lotDiff} LOT AL → $${fmt(buyer.usd,0)}</div>
+      <div style="font-size:7px;color:var(--muted);margin-top:2px">Satış sinyali yok — $${fmt(buyer.usd,0)} dışarıdan ekle</div>
+    </div>`;
+  }
 
-  let needed = buyer.usd;
+  let ihtiyac = buyer.usd; // alım için gereken nakit
   const rows = sellers.map(s=>{
-    if(needed<=0) return '';
-    const use   = Math.min(needed, s.usd);
-    const lots  = s.price>0 ? Math.round(use/s.price) : 0;
-    needed     -= use;
-    const pct   = Math.round((use/s.usd)*100);
+    if(ihtiyac <= 0) return `<div class="rebal-row">
+      <span class="rebal-ticker" style="color:${s.color}">${s.ticker}</span>
+      <span class="rebal-action-sell" style="opacity:0.4">SAT ${s.lotDiff} LOT</span>
+      <span class="rebal-usd" style="color:var(--muted)">Gerek yok</span>
+    </div>`;
+    // Bu satıştan ne kadar lazım?
+    const kullanilan = Math.min(ihtiyac, s.usd);
+    const satilacakLot = s.price>0 ? Math.ceil(kullanilan/s.price) : 0;
+    const gelen = satilacakLot * s.price;
+    ihtiyac -= gelen;
     return `<div class="rebal-row">
       <span class="rebal-ticker" style="color:${s.color}">${s.ticker}</span>
-      <span class="rebal-action-sell">SAT ${lots} LOT</span>
-      <span class="rebal-usd">$${fmt(use,0)} (%${pct})</span>
+      <span class="rebal-action-sell">SAT ${satilacakLot} LOT${satilacakLot<s.lotDiff?' (max '+s.lotDiff+')':''}</span>
+      <span class="rebal-usd">$${fmt(gelen,0)}</span>
     </div>`;
   }).join('');
 
-  const extra = needed>0 ? `<div style="font-size:7px;color:var(--muted);margin-top:3px">Eksik $${fmt(needed,0)} dışarıdan ekle</div>` : '';
+  const eksikStr = ihtiyac>1
+    ? `<div style="font-size:7px;color:var(--red);margin-top:3px">⚠ Eksik $${fmt(ihtiyac,0)} dışarıdan ekle</div>`
+    : `<div style="font-size:7px;color:var(--green);margin-top:3px">✓ Satış geliri yeterli</div>`;
 
   return `<div class="rebal-box rebal-buy">
-    <div class="rebal-title">💡 $${fmt(buyer.usd,0)} alım için → satış önerisi</div>
-    ${rows}${extra}
+    <div class="rebal-title">📥 ${buyer.ticker}: ${buyer.lotDiff} LOT AL ($${fmt(buyer.usd,0)}) → satış planı</div>
+    ${rows}${eksikStr}
   </div>`;
 }
 
